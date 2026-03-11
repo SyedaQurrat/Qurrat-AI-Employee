@@ -2,3 +2,5 @@
 *.deb
 __pycache__/
 *.pyc
+token.json
+venv/
