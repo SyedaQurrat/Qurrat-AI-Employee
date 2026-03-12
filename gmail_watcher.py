@@ -171,14 +171,16 @@ status: pending
 def authenticate_gmail():
     """Authenticate with Gmail API using OAuth2."""
     creds = None
-    
+
     # Load existing token if available
     if TOKEN_FILE.exists():
         creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
-    
+        print("✅ Token loaded from token.json")
+
     # Refresh or obtain new credentials
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
+            print("🔄 Refreshing expired token...")
             creds.refresh(Request())
         else:
             if not CREDENTIALS_FILE.exists():
@@ -186,14 +188,45 @@ def authenticate_gmail():
                 print("📋 Please download OAuth2 credentials from Google Cloud Console")
                 print("   and save as 'credentials.json' in the project directory.")
                 return None
-            
+
+            print("🌐 Starting OAuth2 authorization flow...")
             flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, SCOPES)
-            creds = flow.run_local_server(port=8080, open_browser=True)
-        
+
+            # Try local server flow first with dynamic port (port=0 finds available port)
+            try:
+                print("🌐 Attempting local server authentication (auto port)...")
+                creds = flow.run_local_server(port=0, prompt='consent')
+                print("✅ Authorization successful via local server!")
+            except Exception as e:
+                # Fallback to noauth_local_webserver for environments where browser redirect fails
+                print(f"⚠️  Local server failed: {e}")
+                print("🔄 Falling back to --noauth_local_webserver mode...")
+
+                auth_url, _ = flow.authorization_url(prompt='consent')
+
+                print("\n" + "=" * 70)
+                print("📋 STEP 1: Copy aur open karein yeh URL apne browser mein:")
+                print("=" * 70)
+                print(auth_url)
+                print("=" * 70)
+                print("\n✍️  STEP 2: Google account se login karein aur permissions allow karein")
+                print("\n✍️  STEP 3: Authorization code paste karein neeche:")
+                print("-" * 70)
+                code = input("Authorization code: ").strip()
+
+                if code:
+                    flow.fetch_token(code=code)
+                    creds = flow.credentials
+                    print("✅ Authorization successful!")
+                else:
+                    print("❌ No code provided. Exiting.")
+                    return None
+
         # Save the credentials for the next run
         with open(TOKEN_FILE, "w") as token:
             token.write(creds.to_json())
-    
+        print("✅ Token saved to token.json")
+
     return creds
 
 
